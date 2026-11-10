@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#14120f">
+<title>Идеальный день</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root {
+  --bg: oklch(0.17 0.008 70);
+  --surface: oklch(0.205 0.009 70);
+  --raised: oklch(0.245 0.01 70);
+  --line: oklch(0.31 0.012 70);
+  --text: oklch(0.94 0.015 85);
+  --muted: oklch(0.72 0.018 80);
+  --faint: oklch(0.56 0.015 75);
+  --accent: oklch(0.76 0.155 58);
+  --accent-ink: oklch(0.2 0.04 58);
+  --accent-soft: oklch(0.76 0.155 58 / 0.14);
+  --loss: oklch(0.66 0.17 25);
+  --loss-soft: oklch(0.66 0.17 25 / 0.16);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --r: 14px;
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); color-scheme: dark; scrollbar-color: var(--line) transparent; }
+body {
+  margin: 0;
+  font: 400 16px/1.45 Onest, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+  -webkit-tap-highlight-color: transparent;
+}
+::selection { background: var(--accent); color: var(--accent-ink); }
+button, input { font: inherit; color: inherit; }
+button { background: none; border: 0; padding: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+h1, h2, p { margin: 0; }
+svg { display: block; }
+
+.app {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom));
+}
+
+/* top bar */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.top h1 { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.01em; }
+.run { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.875rem; }
+.run b { color: var(--text); font-weight: 600; }
+.run svg { color: var(--accent); }
+
+/* week */
+.week { display: flex; align-items: stretch; gap: 4px; margin-top: 12px; }
+.week .nav {
+  flex: 0 0 36px; display: grid; place-items: center; border-radius: 10px; color: var(--muted);
+  transition: background 0.18s var(--ease), color 0.18s var(--ease);
+}
+.week .nav:hover { background: var(--surface); color: var(--text); }
+.days { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.day {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 0 7px; border-radius: 12px; min-height: 64px;
+  transition: background 0.18s var(--ease);
+}
+.day:hover { background: var(--surface); }
+.day .wd { font-size: 0.6875rem; color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; }
+.day .num { font-size: 1.0625rem; font-weight: 600; color: var(--muted); }
+.day .mark { width: 6px; height: 6px; border-radius: 50%; margin-top: 2px; background: transparent; }
+.day[data-res="win"] .mark { background: var(--accent); }
+.day[data-res="loss"] .mark { background: var(--loss); }
+.day[data-res="open"] .mark { box-shadow: inset 0 0 0 1.5px var(--faint); }
+.day.today .num { color: var(--text); }
+.day.today .wd { color: var(--accent); }
+.day.sel { background: var(--text); }
+.day.sel .wd { color: oklch(0.42 0.015 75); }
+.day.sel .num { color: var(--bg); }
+.day.sel[data-res="open"] .mark { box-shadow: inset 0 0 0 1.5px oklch(0.42 0.015 75); }
+.day.sel[data-res="win"] .mark { background: oklch(0.58 0.17 50); }
+.back-today { margin-top: 8px; font-size: 0.875rem; color: var(--accent); min-height: 32px; padding: 0 4px; }
+.back-today:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* layout */
+.cols { display: grid; gap: 28px; margin-top: 16px; }
+@media (min-width: 900px) {
+  .app { padding-top: 32px; }
+  .cols { grid-template-columns: minmax(0, 1fr) 320px; gap: 48px; align-items: start; }
+  .week { max-width: 560px; }
+  .side { position: sticky; top: 24px; }
+}
+
+/* day summary */
+.summary { background: var(--surface); border-radius: var(--r); padding: 18px 18px 16px; }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8125rem; font-weight: 600; color: var(--muted); }
+.status i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.summary[data-res="win"] .status { color: var(--accent); }
+.summary[data-res="loss"] .status { color: var(--loss); }
+.summary h2 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; margin-top: 6px; text-wrap: balance; }
+.summary .count { color: var(--muted); margin-top: 2px; }
+.meter { position: relative; margin-top: 18px; padding-bottom: 22px; }
+.track { height: 8px; border-radius: 4px; background: var(--raised); overflow: hidden; }
+.fill {
+  height: 100%; border-radius: 4px; background: var(--muted);
+  transform-origin: left center; transition: width 0.45s var(--ease), background 0.3s var(--ease);
+}
+.summary[data-res="win"] .fill { background: var(--accent); }
+.summary[data-res="loss"] .fill { background: var(--loss); }
+.tick { position: absolute; top: -4px; width: 2px; height: 16px; background: var(--text); border-radius: 1px; transform: translateX(-1px); }
+.tick-label { position: absolute; top: 16px; font-size: 0.75rem; color: var(--muted); transform: translateX(-50%); white-space: nowrap; }
+.tick-label.edge { transform: translateX(-100%); }
+
+/* schedule */
+.sched-head { display: flex; align-items: center; justify-content: space-between; margin: 28px 0 8px; }
+.sched-head h2 { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.01em; }
+.tools { display: flex; gap: 4px; }
+.tool {
+  width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; color: var(--muted);
+  transition: background 0.18s var(--ease), color 0.18s var(--ease);
+}
+.tool:hover { background: var(--surface); color: var(--text); }
+.tool[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.list > li + li { border-top: 1px solid var(--line); }
+.item {
+  width: 100%; display: grid; grid-template-columns: 28px 3.1rem minmax(0, 1fr) auto; align-items: center; column-gap: 12px;
+  padding: 13px 4px; min-height: 56px; text-align: left; border-radius: 10px;
+  transition: background 0.18s var(--ease);
+}
+.item:not(:disabled):hover { background: var(--surface); }
+.item:disabled { cursor: default; }
+.box {
+  width: 26px; height: 26px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--faint);
+  display: grid; place-items: center; transition: background 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+.box svg { stroke: var(--accent-ink); stroke-dasharray: 18; stroke-dashoffset: 18; transition: stroke-dashoffset 0.28s var(--ease) 0.05s; }
+.item.done .box { background: var(--accent); box-shadow: none; }
+.item.done .box svg { stroke-dashoffset: 0; }
+.item:disabled .box { box-shadow: inset 0 0 0 1.5px var(--line); }
+.item .time { color: var(--muted); font-size: 0.9375rem; }
+.item .title { font-weight: 500; overflow-wrap: anywhere; }
+.item .note { display: block; color: var(--muted); font-size: 0.875rem; font-weight: 400; overflow-wrap: anywhere; }
+.item.done .title > span:first-child { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
+.streak { display: inline-flex; align-items: center; gap: 3px; color: var(--accent); font-size: 0.875rem; font-weight: 600; }
+.item .pen { color: var(--faint); }
+.editing .item .box { opacity: 0.35; }
+
+.empty { padding: 28px 4px 8px; color: var(--muted); max-width: 46ch; }
+.empty strong { display: block; color: var(--text); font-weight: 600; margin-bottom: 4px; }
+.empty .actions { margin-top: 16px; }
+
+/* form */
+.form { padding: 16px; margin: 6px 0; background: var(--surface); border-radius: var(--r); display: grid; gap: 14px; }
+.form .row { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: 10px; }
+.field { display: grid; gap: 5px; }
+.field > span { font-size: 0.8125rem; color: var(--muted); }
+.field input {
+  width: 100%; height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--bg); caret-color: var(--accent); transition: border-color 0.18s var(--ease);
+}
+.field input::placeholder { color: var(--faint); }
+.field input:hover { border-color: var(--faint); }
+.field input:focus { outline: none; border-color: var(--accent); }
+.field input[aria-invalid="true"] { border-color: var(--loss); }
+.err { font-size: 0.8125rem; color: var(--loss); }
+.chips { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.chip {
+  height: 40px; border-radius: 10px; border: 1px solid var(--line); font-size: 0.875rem; color: var(--muted);
+  transition: background 0.18s var(--ease), color 0.18s var(--ease), border-color 0.18s var(--ease);
+}
+.chip:hover { border-color: var(--faint); }
+.chip[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--bg); font-weight: 600; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn {
+  height: 44px; padding: 0 18px; border-radius: 10px; font-weight: 600; border: 1px solid var(--line);
+  transition: background 0.18s var(--ease), border-color 0.18s var(--ease), transform 0.12s var(--ease);
+}
+.btn:hover { border-color: var(--faint); }
+.btn:active { transform: scale(0.98); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { background: oklch(0.8 0.15 60); }
+.btn.danger { color: var(--loss); margin-left: auto; border-color: transparent; }
+.btn.danger:hover { background: var(--loss-soft); }
+
+/* side */
+.side h2 { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.01em; }
+.side .lede { color: var(--muted); font-size: 0.9375rem; margin-top: 4px; }
+.heat { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); gap: 4px; margin-top: 16px; max-width: 360px; }
+.cell { aspect-ratio: 1; border-radius: 5px; background: var(--surface); min-width: 0; }
+.cell[data-res="win"] { background: var(--accent); }
+.cell[data-res="loss"] { background: var(--loss-soft); box-shadow: inset 0 0 0 1px oklch(0.66 0.17 25 / 0.5); }
+.cell[data-res="open"] { box-shadow: inset 0 0 0 1px var(--faint); }
+.cell[data-res="future"] { background: transparent; box-shadow: inset 0 0 0 1px var(--line); cursor: default; }
+.cell.sel { outline: 2px solid var(--text); outline-offset: 1px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; font-size: 0.8125rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 11px; height: 11px; border-radius: 3px; }
+.rule { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); }
+.seg { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 12px; }
+.sync { margin-top: 20px; font-size: 0.8125rem; color: var(--faint); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+  const KEY = 'ideal-day-v1';
+  const tg = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData ? window.Telegram.WebApp : null;
+  const cloud = tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9') ? tg.CloudStorage : null;
+
+  // ---------- dates ----------
+  const pad = n => String(n).padStart(2, '0');
+  const keyOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parse = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+  const addDays = (k, n) => { const d = parse(k); d.setDate(d.getDate() + n); return keyOf(d); };
+  const wdOf = k => (parse(k).getDay() + 6) % 7; // 0 = Monday
+  const mondayOf = k => addDays(k, -wdOf(k));
+  const todayKey = () => keyOf(new Date());
+
+  // ---------- state ----------
+  const blank = () => ({ rev: 0, threshold: 80, tasks: [], done: {} });
+  let state = blank();
+  try { state = Object.assign(blank(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
+
+  let sel = todayKey();
+  let editing = false;
+  let form = null; // { id | null, time, title, note, days, error }
+  let syncNote = cloud ? 'Синхронизация с Telegram…' : 'Данные хранятся на этом устройстве.';
+
+  function save(changedDay) {
+    state.rev = Date.now();
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+    if (!cloud) return;
+    const fail = err => { if (err) { syncNote = 'Не удалось сохранить в Telegram — данные остались на устройстве.'; } };
+    cloud.setItem('cfg', JSON.stringify({ rev: state.rev, threshold: state.threshold }), fail);
+    cloud.setItem('tasks', JSON.stringify(state.tasks), fail);
+    if (changedDay) {
+      const ym = changedDay.slice(0, 7);
+      cloud.setItem('m_' + ym.replace('-', '_'), JSON.stringify(monthSlice(ym)), fail);
+    }
+  }
+  function monthSlice(ym) {
+    const out = {};
+    for (const k in state.done) if (k.startsWith(ym) && state.done[k].length) out[k.slice(8)] = state.done[k];
+    return out;
+  }
+  function loadCloud() {
+    if (!cloud) return;
+    cloud.getKeys((err, keys) => {
+      if (err || !keys) { syncNote = 'Telegram-хранилище недоступно — данные на устройстве.'; render(); return; }
+      if (!keys.length) { syncNote = 'Синхронизируется с Telegram.'; if (state.rev) pushAll(); render(); return; }
+      cloud.getItems(keys, (err2, items) => {
+        if (err2 || !items) { syncNote = 'Telegram-хранилище недоступно — данные на устройстве.'; render(); return; }
+        try {
+          const cfg = JSON.parse(items.cfg || '{}');
+          if ((cfg.rev || 0) > (state.rev || 0)) {
+            const next = blank();
+            next.rev = cfg.rev; next.threshold = cfg.threshold || 80;
+            next.tasks = JSON.parse(items.tasks || '[]');
+            for (const k of keys) {
+              if (!k.startsWith('m_')) continue;
+              const ym = k.slice(2).replace('_', '-');
+              const days = JSON.parse(items[k] || '{}');
+              for (const d in days) next.done[`${ym}-${d}`] = days[d];
+            }
+            state = next;
+            try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+          } else if ((state.rev || 0) > (cfg.rev || 0)) {
+            pushAll();
+          }
+          syncNote = 'Синхронизируется с Telegram.';
+        } catch (e) { syncNote = 'Не удалось прочитать данные из Telegram.'; }
+        render();
+      });
+    });
+  }
+  function pushAll() {
+    const months = new Set(Object.keys(state.done).map(k => k.slice(0, 7)));
+    cloud.setItem('cfg', JSON.stringify({ rev: state.rev, threshold: state.threshold }));
+    cloud.setItem('tasks', JSON.stringify(state.tasks));
+    months.forEach(ym => cloud.setItem('m_' + ym.replace('-', '_'), JSON.stringify(monthSlice(ym))));
+  }
+
+  // ---------- model ----------
+  const tasksFor = k => state.tasks
+    .filter(t => t.created <= k && (!t.archived || t.archived > k) && t.days.includes(wdOf(k)))
+    .sort((a, b) => a.time.localeCompare(b.time) || a.title.localeCompare(b.title));
+  const isDone = (k, id) => (state.done[k] || []).includes(id);
+
+  function dayInfo(k) {
+    const tasks = tasksFor(k);
+    const total = tasks.length;
+    const done = tasks.filter(t => isDone(k, t.id)).length;
+    const pct = total ? done / total : 0;
+    const today = todayKey();
+    let res = 'none';
+    if (k > today) res = total ? 'future' : 'none';
+    else if (total) res = pct * 100 >= state.threshold ? 'win' : (k === today ? 'open' : 'loss');
+    return { tasks, total, done, pct, res };
+  }
+  function taskStreak(t, k) {
+    let n = 0, d = k;
+    if (!isDone(d, t.id)) d = addDays(d, -1);
+    for (let i = 0; i < 730 && d >= t.created; i++, d = addDays(d, -1)) {
+      if (!t.days.includes(wdOf(d))) continue;
+      if (isDone(d, t.id)) n++; else break;
+    }
+    return n;
+  }
+  function winStreak() {
+    let n = 0, d = todayKey();
+    if (dayInfo(d).res !== 'win') d = addDays(d, -1);
+    for (let i = 0; i < 730; i++, d = addDays(d, -1)) {
+      const r = dayInfo(d).res;
+      if (r === 'none') { if (!state.tasks.some(t => t.created <= d)) break; continue; }
+      if (r === 'win') n++; else break;
+    }
+    return n;
+  }
+
+  // ---------- helpers ----------
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const plural = (n, a, b, c) => { const m = n % 100, k = n % 10; return m > 10 && m < 20 ? c : k === 1 ? a : k > 1 && k < 5 ? b : c; };
+  const longDate = k => { const s = parse(k).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }); return s[0].toUpperCase() + s.slice(1); };
+  const shortDate = k => parse(k).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+  const uid = () => Math.random().toString(36).slice(2, 8);
+
+  const I = {
+    flame: s => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.6 2.2c.5 3.3-1 5.2-2.7 7.1C8.3 11 6.5 12.900 6.500 15.800a5.500 5.500 0 0 0 11 0c0-1.700-.6-3.100-1.300-4.200-.5 1.100-1.200 1.800-2.100 2.200.4-3.900-.2-8.200-1.500-11.600Z"/></svg>`,
+    check: `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.4l3 3 6-6.6"/></svg>`,
+    pen: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="M13.5 6.500l4 4"/></svg>`,
+    plus: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>`,
+    left: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.800" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>`,
+    right: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.800" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>`
+  };
+  const RES_LABEL = { win: 'день выигран', loss: 'день проигран', open: 'в процессе', future: 'впереди', none: 'нет дел' };
+
+  // ---------- render ----------
+  const app = document.getElementById('app');
+
+  function render() {
+    const fk = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null;
+    const today = todayKey();
+    const info = dayInfo(sel);
+    const streak = winStreak();
+    const future = sel > today;
+
+    // week strip
+    const mon = mondayOf(sel);
+    let days = '';
+    for (let i = 0; i < 7; i++) {
+      const k = addDays(mon, i), r = dayInfo(k).res;
+      days += `<button class="day${k === sel ? ' sel' : ''}${k === today ? ' today' : ''}" data-act="sel" data-day="${k}" data-fk="d${k}" data-res="${r}"
+        aria-pressed="${k === sel}" aria-label="${esc(longDate(k))}, ${RES_LABEL[r]}">
+        <span class="wd">${WD[i]}</span><span class="num">${parse(k).getDate()}</span><span class="mark"></span></button>`;
+    }
+
+    // summary
+    const statusText = { win: 'День выигран', loss: 'День проигран', open: 'В процессе', future: 'Впереди', none: 'Нет дел' }[info.res];
+    const left = Math.max(0, Math.ceil(info.total * state.threshold / 100) - info.done);
+    let countText = info.total ? `${info.done} из ${info.total} выполнено` : 'На этот день ничего не запланировано';
+    if (info.res === 'open' && left) countText += ` · до победы ещё ${left}`;
+    const th = state.threshold;
+
+    // list
+    let list = '';
+    if (form && form.id === null) list += `<li>${formHtml()}</li>`;
+    for (const t of info.tasks) {
+      if (form && form.id === t.id) { list += `<li>${formHtml()}</li>`; continue; }
+      const done = isDone(sel, t.id);
+      const st = future ? 0 : taskStreak(t, sel);
+      const tail = editing
+        ? `<span class="pen">${I.pen}</span>`
+        : (st > 1 ? `<span class="streak" title="Серия: ${st} ${plural(st, 'день', 'дня', 'дней')} подряд">${I.flame(15)}${st}</span>` : '<span></span>');
+      list += `<li><button class="item${done ? ' done' : ''}" data-act="${editing ? 'edit' : 'toggle'}" data-id="${t.id}" data-fk="t${t.id}"
+        ${!editing && future ? 'disabled' : ''} ${editing ? `aria-label="Изменить: ${esc(t.title)}"` : `role="checkbox" aria-checked="${done}"`}>
+        <span class="box">${I.check}</span>
+        <span class="time">${esc(t.time)}</span>
+        <span class="title"><span>${esc(t.title)}</span>${t.note ? `<span class="note">${esc(t.note)}</span>` : ''}</span>
+        ${tail}</button></li>`;
+    }
+    let empty = '';
+    if (!info.tasks.length && !form) {
+      empty = state.tasks.some(t => !t.archived)
+        ? `<div class="empty"><strong>На этот день дел нет</strong>Дела повторяются по выбранным дням недели. Добавьте новое или выберите другой день.</div>`
+        : `<div class="empty"><strong>Соберите свой идеальный день</strong>Добавьте простые действия со временем — они будут повторяться каждый день. Отмечайте сделанное: ${th}% и больше — день выигран.
+            <div class="actions"><button class="btn primary" data-act="add" data-fk="add2">Добавить дело</button><button class="btn" data-act="sample" data-fk="sample">Заполнить примером</button></div></div>`;
+    }
+
+    // heatmap: 12 weeks ending with the current one
+    const start = addDays(mondayOf(today), -77);
+    let cells = '', wins = 0, played = 0;
+    for (let i = 0; i < 84; i++) {
+      const k = addDays(start, i), r = dayInfo(k).res;
+      if (i >= 54 && k <= today && (r === 'win' || r === 'loss')) { played++; if (r === 'win') wins++; }
+      cells += r === 'future' || k > today
+        ? `<span class="cell" data-res="future"></span>`
+        : `<button class="cell${k === sel ? ' sel' : ''}" data-act="sel" data-day="${k}" data-fk="h${k}" data-res="${r}" aria-label="${esc(shortDate(k))}: ${RES_LABEL[r]}" title="${esc(shortDate(k))}: ${RES_LABEL[r]}"></button>`;
+    }
+    const lede = played
+      ? `За последние 30 дней выиграно ${wins} из ${played}.`
+      : 'Здесь будет видно, как дни складываются в систему.';
+
+    app.innerHTML = `
+      <header class="top">
+        <h1>Идеальный день</h1>
+        <span class="run" title="Выигранных дней подряд">${I.flame(16)}<span>Серия побед: <b>${streak}</b> ${plural(streak, 'день', 'дня', 'дней')}</span></span>
+      </header>
+      <nav class="week" aria-label="Неделя">
+        <button class="nav" data-act="week" data-step="-7" data-fk="wprev" aria-label="Предыдущая неделя">${I.left}</button>
+        <div class="days">${days}</div>
+        <button class="nav" data-act="week" data-step="7" data-fk="wnext" aria-label="Следующая неделя">${I.right}</button>
+      </nav>
+      ${sel !== today ? `<button class="back-today" data-act="today" data-fk="today">Вернуться к сегодня</button>` : ''}
+      <div class="cols">
+        <main>
+          <section class="summary" data-res="${info.res}" aria-live="polite">
+            <span class="status"><i></i>${statusText}</span>
+            <h2>${esc(longDate(sel))}</h2>
+            <p class="count">${countText}</p>
+            <div class="meter">
+              <div class="track"><div class="fill" style="width:${(info.pct * 100).toFixed(1)}%"></div></div>
+              <span class="tick" style="left:${th}%"></span>
+              <span class="tick-label${th > 88 ? ' edge' : ''}" style="left:${th}%">порог ${th}%</span>
+            </div>
+          </section>
+          <div class="sched-head">
+            <h2>Расписание</h2>
+            <div class="tools">
+              <button class="tool" data-act="editmode" data-fk="editmode" aria-pressed="${editing}" aria-label="Режим правки" title="Изменить дела">${I.pen}</button>
+              <button class="tool" data-act="add" data-fk="add" aria-label="Добавить дело" title="Добавить дело">${I.plus}</button>
+            </div>
+          </div>
+          <ul class="list${editing ? ' editing' : ''}">${list}</ul>
+          ${empty}
+        </main>
+        <aside class="side">
+          <h2>Регулярность</h2>
+          <p class="lede">${lede}</p>
+          <div class="heat" role="group" aria-label="Последние 12 недель">${cells}</div>
+          <div class="legend">
+            <span><i style="background:var(--accent)"></i>выигран</span>
+            <span><i style="background:var(--loss-soft);box-shadow:inset 0 0 0 1px oklch(0.66 0.17 25 / .5)"></i>проигран</span>
+            <span><i style="background:var(--surface)"></i>без дел</span>
+          </div>
+          <div class="rule">
+            <h2>Порог победы</h2>
+            <p class="lede">Какую долю дел нужно закрыть, чтобы день считался выигранным.</p>
+            <div class="seg" role="group" aria-label="Порог победы">
+              ${[60, 70, 80, 90, 100].map(v => `<button class="chip" data-act="th" data-v="${v}" data-fk="th${v}" aria-pressed="${v === th}">${v}%</button>`).join('')}
+            </div>
+          </div>
+          <p class="sync">${esc(syncNote)}</p>
+        </aside>
+      </div>`;
+
+    if (fk) { const el = app.querySelector(`[data-fk="${fk}"]`); if (el) el.focus({ preventScroll: true }); }
+  }
+
+  function formHtml() {
+    const f = form;
+    return `<form class="form" data-form novalidate>
+      <div class="row">
+        <label class="field"><span>Время</span><input type="time" name="time" value="${esc(f.time)}" required></label>
+        <label class="field"><span>Что сделать</span><input type="text" name="title" value="${esc(f.title)}" maxlength="80" placeholder="Тренировка" autocomplete="off" ${f.error ? 'aria-invalid="true"' : ''}></label>
+      </div>
+      ${f.error ? `<span class="err" role="alert">${esc(f.error)}</span>` : ''}
+      <label class="field"><span>Зачем — необязательно</span><input type="text" name="note" value="${esc(f.note)}" maxlength="120" placeholder="Короткое напоминание себе" autocomplete="off"></label>
+      <div class="field"><span>Повторять</span>
+        <div class="chips">${WD.map((w, i) => `<button type="button" class="chip" data-act="fday" data-i="${i}" aria-pressed="${f.days.includes(i)}">${w}</button>`).join('')}</div>
+      </div>
+      <div class="actions">
+        <button class="btn primary" type="submit">${f.id ? 'Сохранить' : 'Добавить'}</button>
+        <button class="btn" type="button" data-act="cancel">Отмена</button>
+        ${f.id ? `<button class="btn danger" type="button" data-act="del">Удалить</button>` : ''}
+      </div>
+    </form>`;
+  }
+  function readForm() {
+    const el = app.querySelector('[data-form]');
+    if (!el || !form) return;
+    form.time = el.elements.time.value; form.title = el.elements.title.value; form.note = el.elements.note.value;
+  }
+  function openForm(f) {
+    form = f; render();
+    const el = app.querySelector('[data-form] input[name="title"]');
+    if (el) { el.focus(); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+  }
+
+  // ---------- actions ----------
+  app.addEventListener('click', e => {
+    const b = e.target.closest('[data-act]');
+    if (!b || b.disabled) return;
+    const act = b.dataset.act, today = todayKey();
+    if (act === 'sel') { sel = b.dataset.day; form = null; }
+    else if (act === 'week') { sel = addDays(sel, Number(b.dataset.step)); form = null; }
+    else if (act === 'today') { sel = today; form = null; }
+    else if (act === 'toggle') {
+      if (sel > today) return;
+      const id = b.dataset.id, arr = new Set(state.done[sel] || []);
+      const before = dayInfo(sel).res;
+      arr.has(id) ? arr.delete(id) : arr.add(id);
+      if (arr.size) state.done[sel] = [...arr]; else delete state.done[sel];
+      save(sel);
+      if (tg && tg.HapticFeedback) {
+        dayInfo(sel).res === 'win' && before !== 'win' ? tg.HapticFeedback.notificationOccurred('success') : tg.HapticFeedback.impactOccurred('light');
+      }
+    }
+    else if (act === 'editmode') { editing = !editing; form = null; }
+    else if (act === 'add') { openForm({ id: null, time: '07:00', title: '', note: '', days: [0, 1, 2, 3, 4, 5, 6], error: '' }); return; }
+    else if (act === 'edit') {
+      const t = state.tasks.find(x => x.id === b.dataset.id);
+      if (t) { openForm({ id: t.id, time: t.time, title: t.title, note: t.note || '', days: [...t.days], error: '' }); return; }
+    }
+    else if (act === 'fday') {
+      readForm();
+      const i = Number(b.dataset.i);
+      form.days = form.days.includes(i) ? form.days.filter(x => x !== i) : [...form.days, i].sort();
+    }
+    else if (act === 'cancel') { form = null; }
+    else if (act === 'del') {
+      const t = state.tasks.find(x => x.id === form.id);
+      if (t) {
+        if (t.created >= today) state.tasks = state.tasks.filter(x => x !== t); // no history yet
+        else t.archived = today; // past days keep their record
+        save();
+      }
+      form = null;
+    }
+    else if (act === 'th') { state.threshold = Number(b.dataset.v); save(); }
+    else if (act === 'sample') {
+      const c = todayKey(), all = [0, 1, 2, 3, 4, 5, 6];
+      state.tasks = [
+        ['05:00', 'Подъём', ''], ['05:20', 'Чтение и стакан воды', 'Спокойное начало дня'], ['05:40', 'Тренировка', ''],
+        ['07:00', 'Завтрак', ''], ['09:00', 'Глубокая работа: главное дело', 'Без телефона и почты'],
+        ['13:00', 'Глубокая работа: контент', ''], ['18:00', 'Прогулка', ''], ['21:30', 'План на завтра', ''], ['22:00', 'Отбой', '']
+      ].map(([time, title, note]) => ({ id: uid(), time, title, note, days: all, created: c }));
+      save();
+    }
+    render();
+  });
+
+  app.addEventListener('submit', e => {
+    e.preventDefault();
+    readForm();
+    const title = form.title.trim();
+    if (!title) { form.error = 'Напишите, что нужно сделать.'; render(); app.querySelector('input[name="title"]').focus(); return; }
+    if (!form.time) { form.error = 'Укажите время.'; render(); return; }
+    if (!form.days.length) { form.error = 'Выберите хотя бы один день недели.'; render(); return; }
+    if (form.id) {
+      const t = state.tasks.find(x => x.id === form.id);
+      Object.assign(t, { time: form.time, title, note: form.note.trim(), days: form.days });
+    } else {
+      // a new task starts today, so earlier days are not turned into losses
+      const today = todayKey();
+      state.tasks.push({ id: uid(), time: form.time, title, note: form.note.trim(), days: form.days, created: sel < today ? sel : today });
+    }
+    save();
+    form = null;
+    render();
+  });
+
+  app.addEventListener('keydown', e => { if (e.key === 'Escape' && form) { form = null; render(); } });
+
+  // a new day begins while the app stays open
+  let lastDay = todayKey();
+  setInterval(() => { const t = todayKey(); if (t !== lastDay) { if (sel === lastDay) sel = t; lastDay = t; if (!form) render(); } }, 60000);
+
+  if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor('#14120f'); tg.setBackgroundColor('#14120f'); } catch (e) {} }
+  render();
+  loadCloud();
+})();
+</script>
+</body>
+</html>
