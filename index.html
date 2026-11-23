@@ -224,6 +224,8 @@ svg { display: block; }
   const tg = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData ? window.Telegram.WebApp : null;
   const cloud = tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9') ? tg.CloudStorage : null;
 
+  const canHome = !!(tg && tg.isVersionAtLeast && tg.isVersionAtLeast('8.0') && tg.addToHomeScreen);
+
   // ---------- dates ----------
   const pad = n => String(n).padStart(2, '0');
   const keyOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -466,6 +468,7 @@ svg { display: block; }
               ${[60, 70, 80, 90, 100].map(v => `<button class="chip" data-act="th" data-v="${v}" data-fk="th${v}" aria-pressed="${v === th}">${v}%</button>`).join('')}
             </div>
           </div>
+          ${canHome ? `<div class="rule"><h2>Ярлык на телефоне</h2><p class="lede">Значок на экране «Домой» откроет приложение сразу, без поиска бота.</p><div class="actions" style="margin-top:12px"><button class="btn" data-act="home" data-fk="home">Добавить на экран «Домой»</button></div></div>` : ''}
           <p class="sync">${esc(syncNote)}</p>
         </aside>
       </div>`;
@@ -543,6 +546,7 @@ svg { display: block; }
       }
       form = null;
     }
+    else if (act === 'home') { tg.addToHomeScreen(); return; }
     else if (act === 'th') { state.threshold = Number(b.dataset.v); save(); }
     else if (act === 'sample') {
       const c = todayKey(), all = [0, 1, 2, 3, 4, 5, 6];
